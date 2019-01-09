@@ -657,7 +657,8 @@ class FatturaElettronica
     public function getRighe()
     {
         if (empty($this->righe)) {
-            $this->righe = database()->fetchArray('SELECT * FROM `co_righe_documenti` WHERE `sconto_globale` = 0 AND is_descrizione = 0 AND `iddocumento` = '.prepare($this->getDocumento()['id']));
+            //AND is_descrizione = 0
+            $this->righe = database()->fetchArray('SELECT * FROM `co_righe_documenti` WHERE `sconto_globale` = 0  AND `iddocumento` = '.prepare($this->getDocumento()['id']));
         }
 
         return $this->righe;
@@ -966,15 +967,28 @@ class FatturaElettronica
         if (!empty($anagrafica['codice_fiscale'])) {
             $result['CodiceFiscale'] = $anagrafica['codice_fiscale'];
         }
-
-        $result['Anagrafica'] = [
-            'Denominazione' => $anagrafica['ragione_sociale'],
-            // TODO: 'Nome' => $azienda['ragione_sociale'],
-            // TODO: 'Cognome' => $azienda['ragione_sociale'],
-            // TODO: 'Titolo' => $azienda['ragione_sociale'],
-            // TODO: CodEORI
-        ];
-
+		
+		if (!empty($anagrafica['nome']) or !empty($anagrafica['cognome'])){
+			
+			$result['Anagrafica'] = [
+				//'Denominazione' => $anagrafica['ragione_sociale'],
+				'Nome' => $anagrafica['nome'],
+				'Cognome' => $anagrafica['cognome'],
+				// TODO: 'Titolo' => $anagrafica['ragione_sociale'],
+				// TODO: CodEORI
+			];
+			
+			
+		}else{
+			$result['Anagrafica'] = [
+				'Denominazione' => $anagrafica['ragione_sociale'],
+				//'Nome' => $anagrafica['nome'],
+				//'Cognome' => $anagrafica['cognome'],
+				// TODO: 'Titolo' => $anagrafica['ragione_sociale'],
+				// TODO: CodEORI
+			];
+		}
+		
         // Informazioni specifiche azienda
         if ($azienda) {
             $result['RegimeFiscale'] = setting('Regime Fiscale');
@@ -1193,7 +1207,7 @@ class FatturaElettronica
         // Importo Totale Documento (2.1.1.9)
         // Importo totale del documento al netto dell'eventuale sconto e comprensivo di imposta a debito del cessionario / committente
         $fattura = Modules\Fatture\Fattura::find($documento['id']);
-        $result['ImportoTotaleDocumento'] = $fattura->netto;
+        $result['ImportoTotaleDocumento'] = abs($fattura->netto);
 
         return $result;
     }
@@ -1388,6 +1402,8 @@ class FatturaElettronica
             $riga['qta'] = abs($riga['qta']);
             $riga['sconto'] = abs($riga['sconto']);
 
+            $riga['qta'] = (!empty($riga['qta'])) ? $riga['qta'] : 1;
+
             $prezzo_unitario = $riga['subtotale'] / $riga['qta'];
             $prezzo_totale = $riga['subtotale'] - $riga['sconto'];
 
@@ -1474,8 +1490,8 @@ class FatturaElettronica
         foreach ($riepiloghi_percentuale as $riepilogo) {
             $iva = [
                 'AliquotaIVA' => $riepilogo['percentuale'],
-                'ImponibileImporto' => $riepilogo['totale'],
-                'Imposta' => $riepilogo['iva'],
+                'ImponibileImporto' => abs($riepilogo['totale']),
+                'Imposta' => abs($riepilogo['iva']),
                 'EsigibilitaIVA' => $riepilogo['esigibilita'],
             ];
 
@@ -1502,8 +1518,8 @@ class FatturaElettronica
             $iva = [
                 'AliquotaIVA' => 0,
                 'Natura' => $riepilogo['codice_natura_fe'],
-                'ImponibileImporto' => $riepilogo['totale'],
-                'Imposta' => $riepilogo['iva'],
+                'ImponibileImporto' => abs($riepilogo['totale']),
+                'Imposta' => abs($riepilogo['iva']),
                 'EsigibilitaIVA' => $riepilogo['esigibilita'],
             ];
 
@@ -1542,7 +1558,7 @@ class FatturaElettronica
             $pagamento = [
                 'ModalitaPagamento' => $co_pagamenti['codice_modalita_pagamento_fe'],
                 'DataScadenzaPagamento' => $scadenza['scadenza'],
-                'ImportoPagamento' => $scadenza['da_pagare'],
+                'ImportoPagamento' => abs($scadenza['da_pagare']),
             ];
 
             if (!empty($documento['idbanca'])) {
@@ -1557,10 +1573,9 @@ class FatturaElettronica
                     $pagamento['BIC'] = $co_banche['bic'];
                 }
             }
-            
+
             $result[]['DettaglioPagamento'] = $pagamento;
         }
-
 
         return $result;
     }
