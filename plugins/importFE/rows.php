@@ -27,14 +27,28 @@ $citta = $sede['Comune'];
 $provincia = $sede['Provincia'];
 
 echo '
-    <h4>'.
-        $ragione_sociale.'<br>
-        <small>
-            '.(!empty($codice_fiscale) ? (tr('Codice Fiscale').': '.$codice_fiscale.'<br>') : '').'
-            '.(!empty($partita_iva) ? (tr('Partita IVA').': '.$partita_iva.'<br>') : '').'
-            '.$cap.' '.$citta.' ('.$provincia.')<br>
-        </small>
-    </h4><br>';
+    <div class="row" >
+		<div class="col-md-6" >
+			<h4>'.
+				$ragione_sociale.'<br>
+				<small>
+					'.(!empty($codice_fiscale) ? (tr('Codice Fiscale').': '.$codice_fiscale.'<br>') : '').'
+					'.(!empty($partita_iva) ? (tr('Partita IVA').': '.$partita_iva.'<br>') : '').'
+					'.$cap.' '.$citta.' ('.$provincia.')<br>
+				</small>
+			</h4>
+		</div>';	
+echo '
+		<div class="col-md-6">
+			<h4>'.$fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['Numero'].'<br>
+				<small>
+					'.database()->fetchOne('SELECT CONCAT("('.$fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['TipoDocumento'].') ", descrizione) AS descrizione FROM fe_tipi_documento WHERE codice = '.prepare($fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['TipoDocumento']))['descrizione'].'
+					<br>'.Translator::dateToLocale($fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['Data']).'
+					<br>'.$fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['Divisa'].'
+				</small>
+			</h4>
+		</div>
+	</div>';
 
 // Se il blocco DatiPagamento è valorizzato (opzionale)
 if (!empty($fattura_pa->getBody()['DatiPagamento'])){
@@ -48,10 +62,11 @@ if (!empty($fattura_pa->getBody()['DatiPagamento'])){
 	echo '
 		<h4>'.tr('Pagamento').'</h4>
 
-		<p>'.tr('La fattura importata presenta _NUM_ rate di pagamento con le seguenti scadenze', [
+		<p>'.tr('La fattura importata presenta _NUM_ rat_E_ di pagamento con le seguenti scadenze', [
 			'_NUM_' => count($metodi),
+			'_E_' => ((count($metodi)>1) ? 'e': 'a'),
 		]).':</p>
-		<ul>';
+		<ol>';
 
 	// Scadenze di pagamento
 	foreach ($metodi as $metodo) {
@@ -59,11 +74,12 @@ if (!empty($fattura_pa->getBody()['DatiPagamento'])){
 		echo '
 				<li>';
 				
-		//nodo opzionale per il blocco DatiPagamento
+		//DataScadenzaPagamento è un nodo opzionale per il blocco DatiPagamento
 		if (!empty($metodo['DataScadenzaPagamento'])){
 			echo Translator::dateToLocale($metodo['DataScadenzaPagamento']).' ';
 		}
 		
+		echo Translator::numberToLocale($metodo['ImportoPagamento']).' &euro; ';
 		echo '('.((!empty($metodo['ModalitaPagamento'])) ? database()->fetchOne('SELECT descrizione FROM fe_modalita_pagamento WHERE codice = '.prepare($metodo['ModalitaPagamento']))['descrizione'] : '' ).')';
 		
 		
@@ -72,9 +88,16 @@ if (!empty($fattura_pa->getBody()['DatiPagamento'])){
 	}
 
 	echo '
-		</ul>';
+		</ol>';
 		
 }
+
+// Tipo del documento
+$codice_tipo_documento_fe = (intval(database()->fetchNum('SELECT id FROM co_tipidocumento WHERE codice_tipo_documento_fe = '.prepare($fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['TipoDocumento']).''))) ? $fattura_pa->getBody()['DatiGenerali']['DatiGeneraliDocumento']['TipoDocumento'] : '%';
+$query = 'SELECT id, CONCAT (descrizione, IF((codice_tipo_documento_fe IS NULL), \'\', CONCAT( \' (\', codice_tipo_documento_fe, \')\' ) )) as descrizione FROM co_tipidocumento WHERE dir = \'uscita\' AND codice_tipo_documento_fe LIKE '.prepare($codice_tipo_documento_fe);
+
+echo '
+    {[ "type": "select", "label": "'.tr('Tipo fattura').'", "name": "id_tipo", "required": 1, "values": "query='.$query.'" ]}';
 
 
 // prc '.($pagamenti['CondizioniPagamento'] == 'TP01' ? '!' : '').'= 100 AND
