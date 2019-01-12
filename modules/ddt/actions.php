@@ -553,6 +553,54 @@ switch (post('op')) {
         flash()->info(tr('Aggiunti nuovi articoli in ddt!'));
 
         break;
+
+    case 'firma':
+        if (directory($docroot.'/files/ddt')) {
+            if (post('firma_base64') != '') {
+                // Salvataggio firma
+                $firma_file = 'firma_'.time().'.jpg';
+                $firma_nome = post('firma_nome');
+
+                $data = explode(',', post('firma_base64'));
+
+                $img = Intervention\Image\ImageManagerStatic::make(base64_decode($data[1]));
+                $img->resize(680, 202, function ($constraint) {
+                    $constraint->aspectRatio();
+                });
+
+                if (!$img->save($docroot.'/files/ddt/'.$firma_file)) {
+                    flash()->error(tr('Impossibile creare il file!'));
+                } elseif ($dbo->query('UPDATE dt_ddt SET firma_file='.prepare($firma_file).', firma_data=NOW(), firma_nome = '.prepare($firma_nome).', idstatoddt = "6" WHERE id='.prepare($id_record))) {
+                    flash()->info(tr('Firma salvata correttamente!'));
+                    flash()->info(tr('Attività completata!'));
+
+                    $stato = $dbo->selectOne('dt_statiddt', '*', ['id' => '6']);
+                    // Notifica chiusura intervento
+                    if (!empty($stato['notifica']) && !empty($stato['destinatari'])) {
+                        $n = new Notifications\EmailNotification();
+
+                        $n->setTemplate($stato['id_email'], $id_record);
+                        $n->setReceivers($stato['destinatari']);
+
+                        if ($n->send()) {
+                            flash()->info(tr('Notifica inviata'));
+                        } else {
+                            flash()->warning(tr("Errore nell'invio della notifica"));
+                        }
+                    }
+                } else {
+                    flash()->error(tr('Errore durante il salvataggio della firma nel database!'));
+                }
+            } else {
+                flash()->error(tr('Errore durante il salvataggio della firma!').tr('La firma risulta vuota').'...');
+            }
+        } else {
+            flash()->error(tr("Non è stato possibile creare la cartella _DIRECTORY_ per salvare l'immagine della firma!", [
+                '_DIRECTORY_' => '<b>/files/ddt</b>',
+            ]));
+        }
+
+        break;
 }
 
 // Aggiornamento stato degli ordini presenti in questa fattura in base alle quantità totali evase
